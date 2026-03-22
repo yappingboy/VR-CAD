@@ -20,7 +20,7 @@ var active_plane: WorkPlane:
 
 var planes: Array[WorkPlane] = []
 
-var _cad_root: Node3D  # parent node for planes in the scene
+var _cad_root: Node  # parent node for planes in the scene
 
 
 func _ready() -> void:
@@ -63,7 +63,7 @@ func _new_plane() -> WorkPlane:
 	var plane := WorkPlane.new()
 	plane.name = "WorkPlane_%d" % planes.size()
 
-	var parent: Node3D = _cad_root if _cad_root else get_tree().get_root()
+	var parent: Node = _cad_root if _cad_root else get_tree().get_root()
 	parent.add_child(plane)
 
 	planes.append(plane)
