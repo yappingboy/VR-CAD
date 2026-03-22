@@ -29,7 +29,7 @@ func _ready() -> void:
 
 
 func _find_cad_root() -> void:
-	_cad_root = get_tree().get_root().find_child("CADRoot", true, false) as Node3D
+	_cad_root = get_tree().get_root().find_child("CADRoot", true, false) as Node
 	if _cad_root == null:
 		push_warning("PlaneManager: CADRoot not found. Planes will be added to scene root.")
 		_cad_root = get_tree().get_root()
