@@ -1,11 +1,11 @@
 ## XRManager — attached to the root Node3D in main.tscn
 ##
-## Responsibilities:
-##   • Initialize the OpenXR interface
-##   • Enable Meta Quest passthrough (blend mode + vendor API)
-##   • Set up the scene environment for transparency
-##   • Provide a global access point for the XR camera
-##   • Emit signals when XR session state changes
+## Handles WebXR session lifecycle for browser deployment.
+## On page load it shows an "Enter VR" overlay; the browser requires a user
+## gesture before a WebXR session may be created.
+##
+## When WebXR is not available (desktop browser, no headset) the script falls
+## back to a plain Camera3D so the scene is still viewable.
 extends Node3D
 
 signal xr_started
@@ -14,128 +14,149 @@ signal xr_init_failed
 
 ## Convenience: other scripts can call XRManager.get_xr_camera()
 var xr_camera: XRCamera3D
-var _xr_interface: XRInterface
+
+var _xr_interface: WebXRInterface
 var _is_xr_active: bool = false
+
+# Landing-screen overlay nodes
+var _overlay_layer: CanvasLayer
+var _enter_btn: Button
+var _status_label: Label
 
 
 func _ready() -> void:
-	# Defer so the scene tree is fully built before we start XR
-	call_deferred("_initialize_xr")
+	call_deferred("_initialize_webxr")
 
 
-func _initialize_xr() -> void:
-	_xr_interface = XRServer.find_interface("OpenXR")
+func _initialize_webxr() -> void:
+	_xr_interface = XRServer.find_interface("WebXR") as WebXRInterface
 
 	if _xr_interface == null:
-		push_warning("VR-CAD: OpenXR interface not found. Running in desktop fallback mode.")
+		push_warning("VR-CAD: WebXR interface not found — running desktop fallback.")
 		_setup_desktop_fallback()
 		xr_init_failed.emit()
 		return
 
+	# Configure before the user triggers initialise()
+	_xr_interface.session_mode = "immersive-vr"
+	_xr_interface.required_features = "local-floor"
+	_xr_interface.optional_features = "bounded-floor,hand-tracking"
+	_xr_interface.requested_reference_space_types = "bounded-floor,local-floor,local"
+
+	_xr_interface.session_started.connect(_on_session_started)
+	_xr_interface.session_ended.connect(_on_session_ended)
+	_xr_interface.session_failed.connect(_on_session_failed)
+
+	_show_overlay()
+
+
+# ─── Browser Landing Overlay ──────────────────────────────────────────────────
+
+func _show_overlay() -> void:
+	_overlay_layer = CanvasLayer.new()
+	_overlay_layer.layer = 10
+	add_child(_overlay_layer)
+
+	var panel := ColorRect.new()
+	panel.color = Color(0.05, 0.05, 0.12, 0.92)
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay_layer.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.set_anchors_preset(Control.PRESET_CENTER)
+	vbox.offset_left  = -180
+	vbox.offset_right =  180
+	vbox.offset_top   = -100
+	vbox.offset_bottom =  100
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 20)
+	_overlay_layer.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "VR-CAD"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 32)
+	vbox.add_child(title)
+
+	_enter_btn = Button.new()
+	_enter_btn.text = "Enter VR"
+	_enter_btn.custom_minimum_size = Vector2(220, 56)
+	_enter_btn.pressed.connect(_on_enter_vr_pressed)
+	vbox.add_child(_enter_btn)
+
+	_status_label = Label.new()
+	_status_label.text = "Requires Quest Browser, Chrome, or Edge with a WebXR headset"
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status_label.add_theme_font_size_override("font_size", 13)
+	_status_label.custom_minimum_size = Vector2(340, 0)
+	vbox.add_child(_status_label)
+
+
+func _hide_overlay() -> void:
+	if _overlay_layer:
+		_overlay_layer.queue_free()
+		_overlay_layer = null
+		_enter_btn = null
+		_status_label = null
+
+
+func _on_enter_vr_pressed() -> void:
+	if _enter_btn:
+		_enter_btn.disabled = true
+	if _status_label:
+		_status_label.text = "Starting VR session…"
+	# initialize() triggers the browser's WebXR permission prompt.
+	# The result arrives asynchronously via session_started / session_failed.
 	if not _xr_interface.initialize():
-		push_error("VR-CAD: OpenXR failed to initialize.")
-		_setup_desktop_fallback()
+		if _status_label:
+			_status_label.text = "Could not start WebXR — check browser permissions."
+		if _enter_btn:
+			_enter_btn.disabled = false
 		xr_init_failed.emit()
-		return
 
-	# Tell this viewport to use XR rendering
+
+# ─── Session Lifecycle ────────────────────────────────────────────────────────
+
+func _on_session_started() -> void:
 	get_viewport().use_xr = true
-
-	_setup_passthrough_environment()
-	_connect_xr_signals()
-
-	# Grab the camera reference for other systems to use
 	xr_camera = _find_xr_camera()
-
 	_is_xr_active = true
+	_hide_overlay()
 	xr_started.emit()
-	print("VR-CAD: XR started successfully.")
+	print("VR-CAD: WebXR session started.")
 
 
-# ─── Passthrough ────────────────────────────────────────────────────────────
-
-func _setup_passthrough_environment() -> void:
-	# Method 1: Use the Meta vendors plugin if available (preferred)
-	if _try_meta_passthrough_api():
-		print("VR-CAD: Passthrough enabled via Meta vendor API.")
-		return
-
-	# Method 2: Rely on project.godot environment_blend_mode = 2 (AlphaBlend).
-	# The XR compositor blends the real world with rendered content automatically.
-	# We just need to make sure the scene background is transparent.
-	_set_transparent_background()
-	print("VR-CAD: Passthrough enabled via AlphaBlend blend mode.")
-
-
-func _try_meta_passthrough_api() -> bool:
-	# The Godot OpenXR Vendors plugin registers this singleton when available.
-	if not Engine.has_singleton("OpenXRFbPassthroughExtensionWrapper"):
-		return false
-
-	var passthrough = Engine.get_singleton("OpenXRFbPassthroughExtensionWrapper")
-	if passthrough == null:
-		return false
-
-	passthrough.start_passthrough()
-	return true
-
-
-func _set_transparent_background() -> void:
-	var world_env: WorldEnvironment = get_node_or_null("WorldEnvironment")
-	if world_env == null or world_env.environment == null:
-		return
-
-	var env: Environment = world_env.environment
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.0, 0.0, 0.0, 0.0)
-
-
-# ─── XR Signals ──────────────────────────────────────────────────────────────
-
-func _connect_xr_signals() -> void:
-	if _xr_interface.has_signal("session_begun"):
-		_xr_interface.session_begun.connect(_on_session_begun)
-	if _xr_interface.has_signal("session_stopping"):
-		_xr_interface.session_stopping.connect(_on_session_stopping)
-	if _xr_interface.has_signal("session_focussed"):
-		_xr_interface.session_focussed.connect(_on_session_focussed)
-	if _xr_interface.has_signal("session_visible"):
-		_xr_interface.session_visible.connect(_on_session_visible)
-
-
-func _on_session_begun() -> void:
-	print("VR-CAD: XR session begun.")
-	xr_started.emit()
-
-
-func _on_session_stopping() -> void:
-	print("VR-CAD: XR session stopping.")
+func _on_session_ended() -> void:
+	get_viewport().use_xr = false
 	_is_xr_active = false
+	# Re-show overlay so the user can re-enter without a page reload
+	_show_overlay()
 	xr_stopped.emit()
+	print("VR-CAD: WebXR session ended.")
 
 
-func _on_session_focussed() -> void:
-	print("VR-CAD: XR session focused (app is in foreground).")
+func _on_session_failed(message: String) -> void:
+	push_error("VR-CAD: WebXR session failed — " + message)
+	if _status_label:
+		_status_label.text = "Error: " + message
+	if _enter_btn:
+		_enter_btn.disabled = false
+	xr_init_failed.emit()
 
 
-func _on_session_visible() -> void:
-	print("VR-CAD: XR session visible (app in background/overlay).")
-
-
-# ─── Desktop Fallback ────────────────────────────────────────────────────────
+# ─── Desktop Fallback ─────────────────────────────────────────────────────────
 
 func _setup_desktop_fallback() -> void:
-	# When running on desktop without a headset, set up a basic 3D view
-	# so the scene is still usable for development/testing.
-	print("VR-CAD: Desktop fallback active. Use WASD + mouse to look around.")
-	var cam: Camera3D = Camera3D.new()
+	print("VR-CAD: Desktop fallback active. No VR headset detected.")
+	var cam := Camera3D.new()
 	cam.name = "DesktopCamera"
 	cam.position = Vector3(0, 1.6, 2)
 	add_child(cam)
 	cam.make_current()
 
 
-# ─── Helpers ─────────────────────────────────────────────────────────────────
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 func _find_xr_camera() -> XRCamera3D:
 	return _find_node_of_type(self, "XRCamera3D") as XRCamera3D

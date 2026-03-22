@@ -1,0 +1,82 @@
+name: Export and Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - claude/vr-cad-quest-app-kXHdR
+  workflow_dispatch:
+
+# Allow only one Pages deployment at a time
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  export-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Install Godot headless ──────────────────────────────────────────────
+      - name: Install Godot 4.6.1
+        run: |
+          GODOT_VERSION="4.6.1"
+          GODOT_RELEASE="stable"
+          FILENAME="Godot_v${GODOT_VERSION}-${GODOT_RELEASE}_linux.x86_64"
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_RELEASE}/${FILENAME}.zip" \
+               -O godot.zip
+          unzip -q godot.zip
+          sudo mv "${FILENAME}" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+
+      # ── Install export templates ────────────────────────────────────────────
+      - name: Install Godot export templates
+        run: |
+          GODOT_VERSION="4.6.1"
+          GODOT_RELEASE="stable"
+          TEMPLATES_DIR="${HOME}/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_RELEASE}"
+          mkdir -p "${TEMPLATES_DIR}"
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_RELEASE}/Godot_v${GODOT_VERSION}-${GODOT_RELEASE}_export_templates.tpz" \
+               -O templates.tpz
+          unzip -q templates.tpz -d /tmp/godot_templates
+          mv /tmp/godot_templates/templates/* "${TEMPLATES_DIR}/"
+
+      # ── Export ─────────────────────────────────────────────────────────────
+      - name: Export project to Web
+        run: |
+          mkdir -p build/web
+          godot --headless --export-release "Web" build/web/index.html
+
+      # ── Add COI service worker ──────────────────────────────────────────────
+      # GitHub Pages doesn't set COOP/COEP headers required for SharedArrayBuffer
+      # (needed by Godot's thread support). The coi-serviceworker script patches
+      # this transparently in the browser.
+      - name: Add COI service worker
+        run: |
+          curl -sL "https://raw.githubusercontent.com/gzuidhof/coi-serviceworker/master/coi-serviceworker.js" \
+               -o build/web/coi-serviceworker.js
+          sed -i 's|</head>|  <script src="coi-serviceworker.js"></script>\n  </head>|' build/web/index.html
+
+      # ── Deploy ─────────────────────────────────────────────────────────────
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
