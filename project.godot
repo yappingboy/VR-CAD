@@ -1,0 +1,46 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes in []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="VR-CAD"
+config/description="VR CAD tool for Meta Quest with passthrough"
+config/version="0.1.0"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.3", "Mobile")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+textures/vram_compression/import_etc2_astc=true
+
+[xr]
+
+openxr/enabled=true
+openxr/startup_alert=true
+openxr/environment_blend_mode=2
+openxr/hand_tracking/enabled=true
+openxr/hand_tracking/motion_range=0
+openxr/submit_depth_buffer=false
+openxr/form_factor="0"
+openxr/view_configuration="1"
+openxr/reference_space="1"
+
+[autoload]
+
+UndoRedoManager="*res://scripts/cad/undo_redo_manager.gd"
+PlaneManager="*res://scripts/cad/plane_manager.gd"

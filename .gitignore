@@ -1,0 +1,27 @@
+# Godot 4 .gitignore
+
+# Godot-specific ignores
+.godot/
+*.translation
+export.cfg
+export_credentials.cfg
+
+# Android build artifacts
+android/build/
+build/
+*.apk
+*.aab
+
+# Mono/C# specific
+.mono/
+data_*/
+mono_crash.*.json
+
+# OS/Editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+.idea/
+.vscode/settings.json

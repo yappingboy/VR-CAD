@@ -1,0 +1,50 @@
+[gd_scene load_steps=5 format=3 uid="uid://c7xr2nfqmlpb1"]
+
+[ext_resource type="Script" uid="uid://b4ctrl9qwe01" path="res://scripts/xr/controller_input.gd" id="1_ctrl"]
+[ext_resource type="Script" uid="uid://b4ray8qwe02" path="res://scripts/xr/interaction_ray.gd" id="2_ray"]
+[ext_resource type="Script" uid="uid://b4wrist3qwe03" path="res://scripts/ui/wrist_menu.gd" id="3_wrist"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ctrl"]
+top_radius = 0.015
+bottom_radius = 0.02
+height = 0.12
+radial_segments = 12
+
+[node name="XRRig" type="XROrigin3D"]
+
+[node name="XRCamera3D" type="XRCamera3D" parent="."]
+
+[node name="LeftController" type="XRController3D" parent="."]
+tracker = "left_hand"
+pose = "aim"
+script = ExtResource("1_ctrl")
+hand_side = 0
+
+[node name="ControllerVisual" type="MeshInstance3D" parent="LeftController"]
+mesh = SubResource("CylinderMesh_ctrl")
+rotation_degrees = Vector3(90, 0, 0)
+cast_shadow = 0
+
+[node name="LeftRay" type="RayCast3D" parent="LeftController"]
+enabled = true
+target_position = Vector3(0, 0, -8)
+script = ExtResource("2_ray")
+
+[node name="WristMenu" type="Node3D" parent="LeftController"]
+script = ExtResource("3_wrist")
+
+[node name="RightController" type="XRController3D" parent="."]
+tracker = "right_hand"
+pose = "aim"
+script = ExtResource("1_ctrl")
+hand_side = 1
+
+[node name="ControllerVisual" type="MeshInstance3D" parent="RightController"]
+mesh = SubResource("CylinderMesh_ctrl")
+rotation_degrees = Vector3(90, 0, 0)
+cast_shadow = 0
+
+[node name="RightRay" type="RayCast3D" parent="RightController"]
+enabled = true
+target_position = Vector3(0, 0, -8)
+script = ExtResource("2_ray")
