@@ -64,7 +64,7 @@ const GRIP_RELEASE_THRESHOLD: float = 0.25
 # ─── Per-frame ───────────────────────────────────────────────────────────────
 
 func _process(_delta: float) -> void:
-	if not is_active():
+	if not is_active:
 		return
 
 	_update_trigger()
