@@ -76,6 +76,16 @@ func _build_menu_board() -> void:
 	_board.rotation_degrees = Vector3(-20, 0, 0)
 	add_child(_board)
 
+	# Collision body so the interaction ray can detect hits on this board
+	var body := StaticBody3D.new()
+	body.name = "MenuCollision"
+	_board.add_child(body)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(board_size.x, board_size.y, 0.01)
+	shape.shape = box
+	body.add_child(shape)
+
 
 func _build_viewport_ui() -> void:
 	_viewport = SubViewport.new()
@@ -200,6 +210,34 @@ func _show_menu() -> void:
 func _hide_menu() -> void:
 	_is_visible = false
 	_board.visible = false
+
+
+# ─── Interaction ray interface ───────────────────────────────────────────────
+# interaction_ray.gd walks up the tree from the collision body and looks for
+# a node that has on_hover(). These methods satisfy that contract.
+
+func on_hover() -> void:
+	pass  # cursor sphere already gives position feedback
+
+
+func on_unhover() -> void:
+	pass
+
+
+## Called by interaction_ray when the trigger fires while pointing at this menu.
+## hit_position is a world-space point on the board surface.
+func on_select(hit_position: Vector3) -> void:
+	on_ray_trigger(_world_to_uv(hit_position))
+
+
+## Convert a world-space hit point on the board into a 0-1 UV coordinate.
+func _world_to_uv(world_pos: Vector3) -> Vector2:
+	var local := _board.global_transform.affine_inverse() * world_pos
+	var uv := Vector2(
+		local.x / board_size.x + 0.5,
+		-local.y / board_size.y + 0.5
+	)
+	return uv.clamp(Vector2.ZERO, Vector2.ONE)
 
 
 # ─── Tool selection (called by the interaction ray hitting the board) ─────────
