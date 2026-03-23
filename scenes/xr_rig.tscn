@@ -16,7 +16,7 @@ radial_segments = 12
 
 [node name="LeftController" type="XRController3D" parent="."]
 tracker = "left_hand"
-pose = "aim"
+pose = "grip"
 script = ExtResource("1_ctrl")
 hand_side = 0
 
@@ -26,7 +26,7 @@ rotation_degrees = Vector3(90, 0, 0)
 cast_shadow = 0
 
 [node name="LeftRay" type="RayCast3D" parent="LeftController"]
-enabled = true
+enabled = false
 target_position = Vector3(0, 0, -8)
 script = ExtResource("2_ray")
 
