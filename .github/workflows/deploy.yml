@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - claude/vr-cad-quest-app-kXHdR
   workflow_dispatch:
 
 # Allow only one Pages deployment at a time
@@ -62,33 +61,11 @@ jobs:
 
       # ── Stamp build badge into loading page ────────────────────────────────
       - name: Inject build badge
-        run: |
-          export BUILD_NUM=$(git rev-list --count HEAD)
-          export GIT_SHA=$(git rev-parse --short HEAD)
-          export BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
-          python3 - <<'PYEOF'
-import os
-build_num  = os.environ['BUILD_NUM']
-git_sha    = os.environ['GIT_SHA']
-build_date = os.environ['BUILD_DATE']
-css = (
-    '<style>'
-    '#build-badge{'
-    'position:fixed;bottom:8px;right:10px;z-index:9999;'
-    'font-family:monospace;font-size:11px;'
-    'color:rgba(255,255,255,.55);background:rgba(0,0,0,.45);'
-    'padding:3px 7px;border-radius:4px;'
-    'pointer-events:none;letter-spacing:.03em;'
-    '}'
-    '</style>'
-)
-html = f'<div id="build-badge">#{build_num} &nbsp;{git_sha} &nbsp;{build_date}</div>'
-path = 'build/web/index.html'
-text = open(path).read()
-text = text.replace('</head>', css + '</head>', 1)
-text = text.replace('</body>', html + '</body>', 1)
-open(path, 'w').write(text)
-PYEOF
+        env:
+          BUILD_NUM: ${{ github.run_number }}
+          GIT_SHA: ${{ github.sha }}
+          BUILD_DATE: ${{ github.event.head_commit.timestamp }}
+        run: python3 .github/scripts/inject_badge.py
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -99,7 +76,6 @@ PYEOF
   deploy:
     needs: export
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
