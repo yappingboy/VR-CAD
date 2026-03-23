@@ -18,17 +18,13 @@ permissions:
   id-token: write
 
 jobs:
-  export-and-deploy:
+  # ── Export (runs on every push) ─────────────────────────────────────────────
+  export:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Install Godot headless ──────────────────────────────────────────────
       - name: Install Godot 4.6.1
         run: |
           GODOT_VERSION="4.6.1"
@@ -40,7 +36,6 @@ jobs:
           sudo mv "${FILENAME}" /usr/local/bin/godot
           sudo chmod +x /usr/local/bin/godot
 
-      # ── Install export templates ────────────────────────────────────────────
       - name: Install Godot export templates
         run: |
           GODOT_VERSION="4.6.1"
@@ -52,30 +47,35 @@ jobs:
           unzip -q templates.tpz -d /tmp/godot_templates
           mv /tmp/godot_templates/templates/* "${TEMPLATES_DIR}/"
 
-      # ── Export ─────────────────────────────────────────────────────────────
       - name: Export project to Web
         run: |
           mkdir -p build/web
           godot --headless --export-release "Web" build/web/index.html
 
-      # ── Add COI service worker ──────────────────────────────────────────────
-      # GitHub Pages doesn't set COOP/COEP headers required for SharedArrayBuffer
-      # (needed by Godot's thread support). The coi-serviceworker script patches
-      # this transparently in the browser.
+      # GitHub Pages doesn't send COOP/COEP headers; this service worker patches
+      # that so SharedArrayBuffer (needed by Godot threads) works.
       - name: Add COI service worker
         run: |
           curl -sL "https://raw.githubusercontent.com/gzuidhof/coi-serviceworker/master/coi-serviceworker.js" \
                -o build/web/coi-serviceworker.js
           sed -i 's|</head>|  <script src="coi-serviceworker.js"></script>\n  </head>|' build/web/index.html
 
-      # ── Deploy ─────────────────────────────────────────────────────────────
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
+
+  # ── Deploy (main branch only) ───────────────────────────────────────────────
+  deploy:
+    needs: export
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
       - name: Deploy to GitHub Pages
         id: deployment
