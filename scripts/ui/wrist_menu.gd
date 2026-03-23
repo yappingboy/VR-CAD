@@ -46,6 +46,7 @@ var _camera: Camera3D
 var _board: MeshInstance3D
 var _viewport: SubViewport
 var _buttons: Dictionary = {}  # tool_id → ColorRect/Label pair
+var _collision_shape: CollisionShape3D
 
 
 func _ready() -> void:
@@ -80,11 +81,12 @@ func _build_menu_board() -> void:
 	var body := StaticBody3D.new()
 	body.name = "MenuCollision"
 	_board.add_child(body)
-	var shape := CollisionShape3D.new()
+	_collision_shape = CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = Vector3(board_size.x, board_size.y, 0.01)
-	shape.shape = box
-	body.add_child(shape)
+	_collision_shape.shape = box
+	_collision_shape.disabled = true  # starts hidden; enabled in _show_menu()
+	body.add_child(_collision_shape)
 
 
 func _build_viewport_ui() -> void:
@@ -205,11 +207,15 @@ func _update_visibility() -> void:
 func _show_menu() -> void:
 	_is_visible = true
 	_board.visible = true
+	if _collision_shape:
+		_collision_shape.disabled = false
 
 
 func _hide_menu() -> void:
 	_is_visible = false
 	_board.visible = false
+	if _collision_shape:
+		_collision_shape.disabled = true
 
 
 # ─── Interaction ray interface ───────────────────────────────────────────────
