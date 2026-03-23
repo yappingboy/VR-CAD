@@ -18,17 +18,13 @@ permissions:
   id-token: write
 
 jobs:
-  export-and-deploy:
+  # ── Export (runs on every push) ─────────────────────────────────────────────
+  export:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Install Godot headless ──────────────────────────────────────────────
       - name: Install Godot 4.6.1
         run: |
           GODOT_VERSION="4.6.1"
@@ -40,7 +36,6 @@ jobs:
           sudo mv "${FILENAME}" /usr/local/bin/godot
           sudo chmod +x /usr/local/bin/godot
 
-      # ── Install export templates ────────────────────────────────────────────
       - name: Install Godot export templates
         run: |
           GODOT_VERSION="4.6.1"
@@ -52,30 +47,65 @@ jobs:
           unzip -q templates.tpz -d /tmp/godot_templates
           mv /tmp/godot_templates/templates/* "${TEMPLATES_DIR}/"
 
-      # ── Export ─────────────────────────────────────────────────────────────
       - name: Export project to Web
         run: |
           mkdir -p build/web
           godot --headless --export-release "Web" build/web/index.html
 
-      # ── Add COI service worker ──────────────────────────────────────────────
-      # GitHub Pages doesn't set COOP/COEP headers required for SharedArrayBuffer
-      # (needed by Godot's thread support). The coi-serviceworker script patches
-      # this transparently in the browser.
+      # GitHub Pages doesn't send COOP/COEP headers; this service worker patches
+      # that so SharedArrayBuffer (needed by Godot threads) works.
       - name: Add COI service worker
         run: |
           curl -sL "https://raw.githubusercontent.com/gzuidhof/coi-serviceworker/master/coi-serviceworker.js" \
                -o build/web/coi-serviceworker.js
           sed -i 's|</head>|  <script src="coi-serviceworker.js"></script>\n  </head>|' build/web/index.html
 
-      # ── Deploy ─────────────────────────────────────────────────────────────
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
+      # ── Stamp build badge into loading page ────────────────────────────────
+      - name: Inject build badge
+        run: |
+          export BUILD_NUM=$(git rev-list --count HEAD)
+          export GIT_SHA=$(git rev-parse --short HEAD)
+          export BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
+          python3 - <<'PYEOF'
+import os
+build_num  = os.environ['BUILD_NUM']
+git_sha    = os.environ['GIT_SHA']
+build_date = os.environ['BUILD_DATE']
+css = (
+    '<style>'
+    '#build-badge{'
+    'position:fixed;bottom:8px;right:10px;z-index:9999;'
+    'font-family:monospace;font-size:11px;'
+    'color:rgba(255,255,255,.55);background:rgba(0,0,0,.45);'
+    'padding:3px 7px;border-radius:4px;'
+    'pointer-events:none;letter-spacing:.03em;'
+    '}'
+    '</style>'
+)
+html = f'<div id="build-badge">#{build_num} &nbsp;{git_sha} &nbsp;{build_date}</div>'
+path = 'build/web/index.html'
+text = open(path).read()
+text = text.replace('</head>', css + '</head>', 1)
+text = text.replace('</body>', html + '</body>', 1)
+open(path, 'w').write(text)
+PYEOF
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
+
+  # ── Deploy (main branch only) ───────────────────────────────────────────────
+  deploy:
+    needs: export
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
       - name: Deploy to GitHub Pages
         id: deployment

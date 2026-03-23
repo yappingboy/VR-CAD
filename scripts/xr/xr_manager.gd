@@ -38,7 +38,7 @@ func _initialize_webxr() -> void:
 		return
 
 	# Configure before the user triggers initialise()
-	_xr_interface.session_mode = "immersive-vr"
+	_xr_interface.session_mode = "immersive-ar"
 	_xr_interface.required_features = "local-floor"
 	_xr_interface.optional_features = "bounded-floor,hand-tracking"
 	_xr_interface.requested_reference_space_types = "bounded-floor,local-floor,local"
