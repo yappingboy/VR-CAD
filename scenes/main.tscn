@@ -1,8 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://b5tb6pfdkqmj0"]
+[gd_scene load_steps=6 format=3 uid="uid://b5tb6pfdkqmj0"]
 
 [ext_resource type="PackedScene" uid="uid://c7xr2nfqmlpb1" path="res://scenes/xr_rig.tscn" id="1_xrrig"]
 [ext_resource type="Script" uid="uid://b5main9xrm02" path="res://scripts/xr/xr_manager.gd" id="2_main"]
 [ext_resource type="Script" uid="uid://b5cad9root03" path="res://scripts/cad/plane_manager.gd" id="3_plane"]
+[ext_resource type="Script" uid="uid://b5cadtoolmgr04" path="res://scripts/cad/cad_tool_manager.gd" id="4_ctm"]
 
 [sub_resource type="Environment" id="Environment_pass"]
 background_mode = 1
@@ -28,3 +29,6 @@ shadow_enabled = true
 [node name="CADRoot" type="Node3D" parent="."]
 
 [node name="UIRoot" type="Node3D" parent="."]
+
+[node name="CADToolManager" type="Node" parent="."]
+script = ExtResource("4_ctm")
