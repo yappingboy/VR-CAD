@@ -61,6 +61,33 @@ const TRIGGER_RELEASE_THRESHOLD: float = 0.3
 const GRIP_PRESS_THRESHOLD: float = 0.6
 const GRIP_RELEASE_THRESHOLD: float = 0.25
 
+# ─── Lifecycle ───────────────────────────────────────────────────────────────
+
+func _ready() -> void:
+	# In WebXR the trigger fires as a "select" button event rather than as an
+	# analog axis, so we handle both paths to work on Quest browser and native.
+	button_pressed.connect(_on_xr_button_pressed)
+	button_released.connect(_on_xr_button_released)
+
+
+func _on_xr_button_pressed(button_name: String) -> void:
+	if button_name == "select" and not _trigger_pressed:
+		_trigger_pressed = true
+		trigger_pressed.emit()
+	elif button_name == "squeeze" and not _grip_pressed:
+		_grip_pressed = true
+		grip_pressed.emit()
+
+
+func _on_xr_button_released(button_name: String) -> void:
+	if button_name == "select" and _trigger_pressed:
+		_trigger_pressed = false
+		trigger_released.emit()
+	elif button_name == "squeeze" and _grip_pressed:
+		_grip_pressed = false
+		grip_released.emit()
+
+
 # ─── Per-frame ───────────────────────────────────────────────────────────────
 
 func _process(_delta: float) -> void:

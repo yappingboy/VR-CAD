@@ -120,6 +120,7 @@ func _on_enter_vr_pressed() -> void:
 
 func _on_session_started() -> void:
 	get_viewport().use_xr = true
+	get_viewport().transparent_bg = true  # Required for AR passthrough on Quest
 	xr_camera = _find_xr_camera()
 	_is_xr_active = true
 	_hide_overlay()
